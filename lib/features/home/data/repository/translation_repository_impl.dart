@@ -1,0 +1,72 @@
+import 'dart:convert';
+
+import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
+import 'package:google_translate_clone/core/error/failuer.dart';
+import 'package:google_translate_clone/core/error/server_failuer.dart';
+import 'package:google_translate_clone/core/utils/api_services.dart';
+import 'package:google_translate_clone/features/home/data/view_model/language_model.dart';
+import 'package:google_translate_clone/features/home/data/view_model/translate_model.dart';
+
+import 'translation_repository.dart';
+
+class TranslationRepositoryImpl implements TranslationRepository {
+  final ApiService apiService;
+
+  TranslationRepositoryImpl(this.apiService);
+
+  @override
+  Future<Either<Failure, TranslationModel>> translate(
+      String from, String to, String query) async {
+    try {
+      final response = await apiService.post(
+        endpoint: "free-google-translator",
+        queryParameters: {
+          'from': from,
+          'to': to,
+          'query': query,
+        },
+        options: Options(
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-RapidAPI-Host': 'free-google-translator.p.rapidapi.com',
+            'X-RapidAPI-Key':
+                'ffc411ee28mshcb2817f49776dd6p1b9669jsn86d4af63b801',
+          },
+        ),
+        data: {
+          'translate': 'rapidapi',
+        },
+      );
+
+      if (response.data != null) {
+        if (response.statusCode == 200) {
+          final translationModel = TranslationModel.fromJson(response.data);
+          return Right(translationModel);
+        } else {
+          final errorMessage =
+              response.data['message'] ?? 'Failed to load translation data';
+          return Left(ServerFailure(errorMessage));
+        }
+      } else {
+        return Left(ServerFailure('No data received'));
+      }
+    } on DioException catch (error) {
+      return Left(ServerFailure.fromDioException(error));
+    }
+  }
+
+  @override
+  Future<List<LanguageModel>> loadLanguages() async {
+    try {
+      final response =
+          await rootBundle.loadString('assets/jsons/language_list.json');
+      List<dynamic> data = jsonDecode(response);
+
+      return data.map((json) => LanguageModel.fromJson(json)).toList();
+    } catch (error) {
+      throw Exception('Failed to load languages: $error');
+    }
+  }
+}
